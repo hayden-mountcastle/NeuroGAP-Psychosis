@@ -1,29 +1,27 @@
 ---
 title: "Telomere Exploration"
 author: "Hayden Mountcastle and Andrew Ratanatharathorn"
-date: "November 3rd, 2023"
-output:
-  pdf_document: 
-    latex_engine: xelatex
-  html_document:
-    df_print: paged
-  word_document: default
+date: "Feb. 25, 2025"
+output: 
+  pdf_document:
+    toc: true
+    number_sections: true
+always_allow_html: true
+
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
 ```
+
 # Contents
-
-## Analyses
-
 
 **Purpose:**
 
 This is an exploratory analysis of 971 participants, 487 cases with 
 Schizophrenia and 484 controls, with telomere and phenotype data from NGAP 
-Pyschosis. The original sample has 1000 participants, 
+Psychosis. The original sample has 1000 participants, 
 evenly split between cases and controls,
 but 29 participants were not included in the analysis due to 
 insufficient DNA or failed samples, leaving a total of n=971 participants. 
@@ -54,15 +52,10 @@ In the adjusted linear regression model, controlling for age and sex,
 schizophrenia (*is_case*=1) is associated with LTL (p=0.016)
 
 
-
 **UPDATE 4-30-24**
 
 On 4-10-24 we received data that brought to attention certain duplicated phenotypes in our data. 
 It appears that some of these are located in this telomere dataset. We are now removing them and continuing our analysis. 
-
-
-
-
 
 # Data
 
@@ -91,9 +84,8 @@ library(ggeasy)
 library(rcompanion)
 library(nnet)
 library(gt)
-
-#devtools::install_github("thomasp85/patchwork")
 library(patchwork)
+library(EValue)
 ```
 
 **Data specifics**
@@ -155,8 +147,8 @@ ngap_7 <- read.csv("NeuroGAP-P_Release7_Final.csv")
 setwd(path_analytic)
 ```
 
-
-##Loading in duplicate data
+## Finding Duplicates
+**Loading in duplicate data**
 
 ```{r}
 
@@ -165,7 +157,7 @@ duplicate <- read.csv("Phenotype Swap Data_4-10-24.csv")
 ```
 
 
-##Finding duplicates
+**Finding duplicates**
 
 ```{r}
 
@@ -334,6 +326,7 @@ count_mismatch(tel_all, "case_control", "is_case")
 tel_all$case_control <- tel_all$is_case
 
 
+#PCL
 
 tel_all <- tel_all %>% 
   mutate(pcl_33score= case_when(
@@ -345,6 +338,8 @@ tel_all <- tel_all %>%
   ))
 
 
+
+#Trauma Load
 tel_all <- tel_all %>% mutate(
               trauma_load = rowSums(select(.,lec_q1_1, lec_q1_2,
                                 lec_q2_1, lec_q2_2 , 
@@ -364,7 +359,65 @@ tel_all <- tel_all %>% mutate(
                                   lec_q16_1 , 
                                   lec_q17_1 , lec_q17_2), na.rm=TRUE))
 
+
+# Psych meds 
+tel_all <- tel_all %>% mutate(
+          psych_meds_num_all = 
+                             factor(case_when(
+                               psych_meds_num == 1 ~ "1",
+                               psych_meds_num == 2 ~ "2",
+                               psych_meds_num == 3 ~ "3",
+                               is.na(psych_meds_num) ~ "0"), 
+                               levels = c("0","1","2","3")))
+
+
+antipsych_meds <- c(24, 25,26, 27, 28, 29, 30, 31, 32,  33,  34,  35, 40)
+
+tel_all <- tel_all %>%
+  mutate(
+    antipsych_meds_count = rowSums(across(c(med_name_1, med_name_2, med_name_3), 
+                                          ~ . %in% antipsych_meds))
+  ) %>%
+
+  mutate(antipsych_meds_cat = factor(case_when(
+    antipsych_meds_count >= 2 ~ "2+",
+    antipsych_meds_count == 1 ~ "1",
+    antipsych_meds_count == 0 ~ "0"), levels = c("0","1","2+")
+  ))
+    
+  #   one_drug = factor(ifelse(antipsych_meds_count == 1, 1, 0), level=c(0,1)),
+  #   two_drug = factor(ifelse(antipsych_meds_count == 2, 1, 0), level=c(0,1)),
+  #   three_plus_drug = factor(ifelse(antipsych_meds_count == 3, 1, 0),
+  #                                 level=c(0,1))
+  # )
+
+
+
+
+
+#MINI MODULE K
+
+tel_all <- tel_all %>% mutate(
+              miniK_count = rowSums(select(.,
+                                           mini_K1a,
+                                           mini_K2a,
+                                           mini_K3a,
+                                           mini_K4a,
+                                           mini_K5a,
+                                           mini_K6a,
+                                           mini_K7a,
+                                           mini_K8a,
+                                           mini_K9a,
+                                           mini_K10a,
+                                           mini_K11a
+                                           ), na.rm=TRUE))
+
+
 ```
+
+
+
+
 
 \pagebreak
 
@@ -1992,15 +2045,17 @@ label(tel_all$cidi_q14)  <- "Stomach or intestine"
 label(tel_all$cidi_q15)  <- "HIV/AIDS"
 label(tel_all$cidi_q16)  <- "Epilepsy/Seizure"
 label(tel_all$cidi_q17)  <- "Cancer"
+label(tel_all$antipsych_meds_count)  <- "Antipsych Meds"
 
 
 tbl <- table1(~ age_at_iview + msex + educ_ord + 
                  bmi_bin + alcohol_3cat + khat_3cat + cannabis_3cat + tobacco_3cat + 
                 cidi_q1 + cidi_q2 + cidi_q3 + cidi_q4 + cidi_q5 + cidi_q6 +
                 cidi_q7 + cidi_q8  + cidi_q9 + cidi_q10 + cidi_q11 + cidi_q12 +
-               cidi_q13 + cidi_q14 + cidi_q15 + cidi_q16 + cidi_q17 | is_case_f, data=tel_all, overall=F)
+               cidi_q13 + cidi_q14 + cidi_q15 + cidi_q16 + cidi_q17 +
+                factor(antipsych_meds_count)| is_case_f, data=tel_all, overall=F)
 
-tbl <- t1flex(tbl)
+#tbl <- t1flex(tbl)
 
 tbl
 ```
@@ -2311,11 +2366,6 @@ kable(tab)
 
 
 
-## Analysis with clean/unclean cases and controls
-
-Distribution of ltl/age with clean cases , unclean cases, controls 
-Update powerpoint with controls as reference group
-
 ```{r, warning=FALSE}
 tel_all <- tel_all %>% mutate(is_case_clean = case_when(
                         is_case == 1 &
@@ -2383,9 +2433,8 @@ tel_all_truescd <- tel_all %>% mutate(is_case_clean = case_when(
 
 
 
-Age distribution of clean/unclean cases and controls. 
+**Age distribution of clean/unclean cases and controls. **
 
-The unclean cases among Females screw older than the rest of the population 
 ```{r, warning=FALSE}
 
 ggplot(tel_all, aes(x=age_at_iview, group = is_case_clean, fill=is_case_clean)) +
@@ -2398,7 +2447,6 @@ ggplot(tel_all, aes(x=age_at_iview, group = is_case_clean, fill=is_case_clean)) 
   theme_bw()
 ```
 
-
 ```{r, warning=FALSE, include=FALSE}
 
 tbl <- table1(~ age_at_iview + educ_ord + 
@@ -2407,21 +2455,17 @@ tbl <- table1(~ age_at_iview + educ_ord +
                 cidi_q1 + cidi_q2 + cidi_q3 + cidi_q4 + cidi_q5 + cidi_q6 +
                 cidi_q7 + cidi_q8  + cidi_q9 + cidi_q10 + cidi_q11 + cidi_q12 +
                cidi_q13 + cidi_q14 + cidi_q15 + 
-                cidi_q16 + cidi_q17 | msex*is_case_clean,
+                cidi_q16 + cidi_q17 + factor(antipsych_meds_count) |is_case_clean,
               data=tel_all, overall=F)
 
 
-
-tbl <- tbl %>%
-  kbl() %>%
-  kable_styling(full_width = FALSE)
 
 tbl
 
 ```
 
 
-## New 3-29-23
+## Rosner Batch Correction 3-29-24
 
 Next steps:
 1. Filter 26 missing after batch correction
@@ -2456,7 +2500,7 @@ Models:
 6. Model 4 + education * case status interaction
 
 
-### 1 Rosner Batch Correction
+### 1. Rosner Batch Correction
 ```{r, include=T}
 
 #Rosner batch correction with clean/unclean cases
@@ -2492,6 +2536,7 @@ round(confint(model_ros),3)
 ```
 
 \newpage
+
 **How many people do we lose excluding CIDI variables (Excluding HIV and cancer)**
 ```{r, warning=FALSE}
 
@@ -2514,7 +2559,7 @@ tel_all %>% filter(cidi_q1 %in% c(777) |
 
 
 ```
-### 2 
+### 2. Filter
 **Filter these 26 these people from analysis.**
 ```{r, warning=FALSE }
 
@@ -2578,22 +2623,8 @@ tel_all_nomissing_truescd <- tel_all_nomissing_truescd %>%
 
 ```
 
-**Make new rosner batch corrected dataframe**
-```{r, warning=FALSE }
 
-# ros <- adjust_batch(
-#   data = tel_all_nomissing,
-#   markers = ltl,
-#   batch = Set,
-#   method = simple
-# )
-
-```
-
-\newpage
-
-
-### 3 Figures
+### 3. Figures
 
 **Scatterplot -- age and batch corrected ltl**
 
@@ -2606,6 +2637,20 @@ ros %>%
   xlab("Age") + ylab("Batch Corrected LTL")  + 
   ggtitle("Age vs. Batch Corrected LTL Scatterplot")
 ```
+**Histogram  of antipsychotic use**
+
+```{r}
+hist(tel_all$antipsych_meds_count[tel_all$is_case==1])
+```
+
+
+**Histogram  of psychosis severity**
+
+```{r}
+hist(tel_all$miniK_count[tel_all$is_case == 1])
+```
+
+
 **Boxplots of LTL and filtered/unfiltered cases**
 ```{r}
 compare_means(ltl ~ is_case_clean,  data = tel_all_nomissing, method = "t.test")
@@ -2795,7 +2840,6 @@ dev.off()
 ```
 
 
-# Assist
 ```{r}
 
 tbl <- table1(~ ltl + age_at_iview + msex + educ_ord +
@@ -2806,19 +2850,9 @@ tbl <- table1(~ ltl + age_at_iview + msex + educ_ord +
               caption = "Demographics by Case Status",
               render=rndr)
 
+tbl
 ```
 
-
-```{r}
-
-mean(tel_all_nomissing_2$age_at_iview)
-sd(tel_all_nomissing_2$age_at_iview)
-min(tel_all_nomissing_2$age_at_iview)
-max(tel_all_nomissing_2$age_at_iview)
-
-
-
-```
 
 ```{r}
 tbl <- table1(~ cidi_q1 + cidi_q2 + cidi_q3 + cidi_q4 + cidi_q5 + cidi_q6 +
@@ -2979,7 +3013,6 @@ tbl_regression(model6) %>% add_significance_stars(
 
 nobs(model1)
 
-summary(model6)
 
 ```
 
@@ -3056,11 +3089,9 @@ kable(summary_table_new)
 ```
 
 
-# Statified Analysis 
+### Analysis of sets
 
-## Set A
-
-
+#### Set A
 
 ```{r}
 
@@ -3198,7 +3229,7 @@ kable(summary_table_new, caption="Models for Set A (n=227)",
 ```
 
 
-## Set B
+#### Set B
 
 
 ```{r}
@@ -3336,7 +3367,7 @@ kable(summary_table_new, caption="Models for Set B (n=229)")
 ```
 
 
-## Set C
+#### Set C
 
 ```{r}
 
@@ -3473,7 +3504,7 @@ kable(summary_table_new, caption="Models for Set C (n=233)")
 ```
 
 
-## Set D
+#### Set D
 
 ```{r}
 
@@ -3610,64 +3641,37 @@ kable(summary_table_new, caption="Models for Set D (n=233)")
 ```
 
 
-# Stratified new
+# Stratified analysis
 
-### Sets ACE
+## By batch 
 
-
+### Set ACE
 ```{r}
 
 ros_merged_ACE <- ros_merged %>% filter(Set %in% c("A", "C","E")) 
 
 ```
 
-
 **Model 1**
 ```{r, message=FALSE, warning=FALSE }
-
 model1_ACE <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean, ros_merged_ACE)
-#summary(model)
-
-# tbl_regression(model1) %>% add_significance_stars(
-#     hide_p = FALSE, hide_ci = FALSE,
-#     pattern = "{p.value}{stars}"
-#   )
-# 
-# summary(model1)
 ```
 
 **Model 2**
 ```{r, message=FALSE, warning=FALSE }
-
 model2_ACE <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean + msex, ros_merged_ACE)
-#summary(model)
 
-
-# tbl_regression(model2) %>% add_significance_stars(
-#     hide_p = FALSE, hide_ci = FALSE,
-#     pattern = "{p.value}{stars}"
-#   )
 ```
 
 **Model 3**
 3. lm(Rosner LTL ~ Age + case + sex + education + BMI
 ```{r}
-
 model3_ACE <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean + msex +
                educ_ord + bmi_bin, ros_merged_ACE)
-
-# tbl_regression(model3) %>% add_significance_stars(
-#     hide_p = FALSE, hide_ci = FALSE,
-#     pattern = "{p.value}{stars}"
-#   )
 ```
 
 ```{r}
-# 
-# row_names <- c("Age", "Filtered Case", "Unfiltered Case")
-# summary_table <- data.frame(matrix(NA, nrow = length(row_names), ncol = 0))
-# 
-# 
+
 summary_table = NULL
 
 model_list <- c("model1_ACE", "model2_ACE", "model3_ACE")
@@ -3714,14 +3718,10 @@ for (i in 1:length(model_list)) {
 df <- as.data.frame(results)
 colnames(df)<-c("Model", "Coefficient", "N", "Beta", "95% CI", "P")
 
-kable(df, format = "html", caption="Sets ACE") %>%
-  kable_styling(full_width = FALSE)
-
-
 kable(df, caption="Sets ACE")
 ```
 
-### Set B
+###  Set B
 
 ```{r}
 
@@ -3734,26 +3734,12 @@ ros_merged_B <- ros_merged %>% filter(Set == "B")
 ```{r, message=FALSE, warning=FALSE }
 
 model1_B <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean, ros_merged_B)
-#summary(model)
-
-# tbl_regression(model1) %>% add_significance_stars(
-#     hide_p = FALSE, hide_ci = FALSE,
-#     pattern = "{p.value}{stars}"
-#   )
-
 ```
 
 **Model 2**
 ```{r, message=FALSE, warning=FALSE }
 
 model2_B <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean + msex, ros_merged_B)
-#summary(model)
-
-# 
-# tbl_regression(model2) %>% add_significance_stars(
-#     hide_p = FALSE, hide_ci = FALSE,
-#     pattern = "{p.value}{stars}"
-#   )
 ```
 
 **Model 3**
@@ -3762,11 +3748,6 @@ model2_B <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean + msex, ros_merged_B)
 
 model3_B <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean + msex +
                educ_ord + bmi_bin, ros_merged_B)
-
-# tbl_regression(model3) %>% add_significance_stars(
-#     hide_p = FALSE, hide_ci = FALSE,
-#     pattern = "{p.value}{stars}"
-#   )
 ```
 
 ```{r}
@@ -3815,10 +3796,6 @@ for (i in 1:length(model_list)) {
 df <- as.data.frame(results)
 colnames(df)<-c("Model", "Coefficient", "N", "Beta", "95% CI", "P")
 
-kable(df, format = "html", caption="Sets ACE") %>%
-  kable_styling(full_width = FALSE)
-
-
 kable(df)
 ```
 
@@ -3827,9 +3804,7 @@ kable(df)
 ### Set D
 
 ```{r}
-
 ros_merged_D <- ros_merged %>% filter(Set == "D")
-
 ```
 
 
@@ -3837,26 +3812,11 @@ ros_merged_D <- ros_merged %>% filter(Set == "D")
 ```{r, message=FALSE, warning=FALSE }
 
 model1_D <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean, ros_merged_D)
-#summary(model)
-
-# tbl_regression(model1) %>% add_significance_stars(
-#     hide_p = FALSE, hide_ci = FALSE,
-#     pattern = "{p.value}{stars}"
-#   )
-
 ```
 
 **Model 2**
 ```{r, message=FALSE, warning=FALSE }
-
 model2_D <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean + msex, ros_merged_D)
-#summary(model)
-
-# 
-# tbl_regression(model2) %>% add_significance_stars(
-#     hide_p = FALSE, hide_ci = FALSE,
-#     pattern = "{p.value}{stars}"
-#   )
 ```
 
 **Model 3**
@@ -3866,18 +3826,9 @@ model2_D <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean + msex, ros_merged_D)
 model3_D <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean + msex +
                educ_ord + bmi_bin, ros_merged_D)
 
-# tbl_regression(model3) %>% add_significance_stars(
-#     hide_p = FALSE, hide_ci = FALSE,
-#     pattern = "{p.value}{stars}"
-#   )
 ```
 
 ```{r}
-# 
-# row_names <- c("Age", "Filtered Case", "Unfiltered Case")
-# summary_table <- data.frame(matrix(NA, nrow = length(row_names), ncol = 0))
-# 
-# 
 summary_table = NULL
 
 model_list <- c("model1_D", "model2_D", "model3_D")
@@ -3924,10 +3875,6 @@ for (i in 1:length(model_list)) {
 df <- as.data.frame(results)
 colnames(df)<-c("Model", "Coefficient", "N", "Beta", "95% CI", "P")
 
-kable(df, format = "html", caption="Sets ACE") %>%
-  kable_styling(full_width = FALSE)
-
-
 kable(df)
 ```
 
@@ -3939,27 +3886,12 @@ kable(df)
 
 model1_all <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean, ros_merged)
 
-
-#summary(model)
-
-# tbl_regression(model1) %>% add_significance_stars(
-#     hide_p = FALSE, hide_ci = FALSE,
-#     pattern = "{p.value}{stars}"
-#   )
-
 ```
 
 **Model 2**
 ```{r, message=FALSE, warning=FALSE }
 
 model2_all <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean + msex, ros_merged)
-#summary(model)
-
-
-# tbl_regression(model2) %>% add_significance_stars(
-#     hide_p = FALSE, hide_ci = FALSE,
-#     pattern = "{p.value}{stars}"
-#   )
 ```
 
 **Model 3**
@@ -3969,10 +3901,6 @@ model2_all <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean + msex, ros_merged)
 model3_all <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean + msex +
                educ_ord + bmi_bin, ros_merged)
 
-# tbl_regression(model3) %>% add_significance_stars(
-#     hide_p = FALSE, hide_ci = FALSE,
-#     pattern = "{p.value}{stars}"
-#   )
 ```
 
 
@@ -3980,47 +3908,93 @@ model3_all <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean + msex +
 
 model4_all <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean + msex +
                educ_ord + bmi_bin + khat_3cat + alcohol_3cat + cannabis_3cat +
-               alcohol_3cat + tobacco_3cat +
+               alcohol_3cat + tobacco_3cat + 
                cidi_q1 + cidi_q2 + cidi_q3 + cidi_q4 + cidi_q5 + cidi_q6 +
                cidi_q7 + cidi_q8 + cidi_q9 + cidi_q10 + cidi_q11 +
                cidi_q12 + cidi_q13 + cidi_q14 + cidi_q15 + cidi_q16 +
                cidi_q17, ros_merged)
-
-# tbl_regression(model4_all) %>% add_significance_stars(
-#     hide_p = FALSE, hide_ci = FALSE,
-#     pattern = "{p.value}{stars}"
-#   )
-
 
 
 model4_all_truescd <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean + msex +
                educ_ord + bmi_bin + khat_3cat + alcohol_3cat + cannabis_3cat +
-               alcohol_3cat + tobacco_3cat +
+               alcohol_3cat + tobacco_3cat + 
                cidi_q1 + cidi_q2 + cidi_q3 + cidi_q4 + cidi_q5 + cidi_q6 +
                cidi_q7 + cidi_q8 + cidi_q9 + cidi_q10 + cidi_q11 +
                cidi_q12 + cidi_q13 + cidi_q14 + cidi_q15 + cidi_q16 +
                cidi_q17, ros_merged)
 
+```
 
-summary(model4_all)
 
-confint(model4_all)
+
+## E- Value
+
+```{r}
+## linear regression
+# standardizing conservatively by SD(Y)
+
+est = OLS(model4_all$coefficients[2], sd = sd(ros_merged$age_at_iview))
+
+# for a 1-unit increase in income 
+evalue(est = est, 
+       se = summary(model4_all)$coefficients['is_case_cleanHealthy Case', 'Std. Error'])
+
+est = OLS(ols$coefficients[2], sd = sd(lead$age))
+OLS(0.0681679, 0.2187029)
+```
+
+## Models (all sets) with K10 + antipsychotics
+
+
+**Basic Model**
+```{r}
+model_antipsych <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean + msex +
+               antipsych_meds_count + miniK_count
+               , ros_merged)
+summary(model_antipsych)
+
+
+
+model_antipsych <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean + msex +
+                antipsych_meds_cat + miniK_count
+               , ros_merged)
+summary(model_antipsych)
+```
+
+
+**Full Model**
+
+```{r}
+model_antipsych <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean + msex +
+               educ_ord + bmi_bin + khat_3cat + alcohol_3cat + cannabis_3cat +
+               alcohol_3cat + tobacco_3cat +  antipsych_meds_count + miniK_count + 
+               cidi_q1 + cidi_q2 + cidi_q3 + cidi_q4 + cidi_q5 + cidi_q6 +
+               cidi_q7 + cidi_q8 + cidi_q9 + cidi_q10 + cidi_q11 +
+               cidi_q12 + cidi_q13 + cidi_q14 + cidi_q15 + cidi_q16 +
+               cidi_q17, ros_merged)
+
+summary(model_antipsych)
+
+
+model_antipsych <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean + msex +
+               educ_ord + bmi_bin + khat_3cat + alcohol_3cat + cannabis_3cat +
+               alcohol_3cat + tobacco_3cat +  antipsych_meds_cat + miniK_count + 
+               cidi_q1 + cidi_q2 + cidi_q3 + cidi_q4 + cidi_q5 + cidi_q6 +
+               cidi_q7 + cidi_q8 + cidi_q9 + cidi_q10 + cidi_q11 +
+               cidi_q12 + cidi_q13 + cidi_q14 + cidi_q15 + cidi_q16 +
+               cidi_q17, ros_merged)
+
+summary(model_antipsych)
+
 ```
 
 
 
 ```{r}
-# 
-# row_names <- c("Age", "Filtered Case", "Unfiltered Case")
-# summary_table <- data.frame(matrix(NA, nrow = length(row_names), ncol = 0))
-# 
-# 
 summary_table = NULL
 
 model_list <- c("model1_all", "model2_all", "model3_all", "model4_all")
 
-# var <- c("age_at_iview","control", "is_case_cleanHealthy Case",
-#          "is_case_cleanUnhealthy Case")
 
 results <- NULL
 
@@ -4051,16 +4025,10 @@ for (i in 1:length(model_list)) {
     
     results <- rbind(results,c(model_list[i], var[j], nobs, beta, ci, p))
     }
-
 }
      
-
 df <- as.data.frame(results)
 colnames(df)<-c("Model", "Coefficient", "N", "Beta", "95% CI", "P")
-
-kable(df, format = "html", caption="Sets ACE") %>%
-  kable_styling(full_width = FALSE)
-
 
 kable(df)
 ```
@@ -4114,16 +4082,12 @@ for (i in 1:length(model_list)) {
 df <- as.data.frame(results)
 colnames(df)<-c("Model", "Coefficient", "N", "Beta", "95% CI", "P")
 
-kable(df, format = "html", caption="Sets ACE") %>%
-  kable_styling(full_width = FALSE)
-
-
 kable(df)
 
 ```
 
 
-#### Stratified by sex
+## Stratified by sex
 
 ```{r}
 
@@ -4132,34 +4096,17 @@ ros_merged_female <- ros_merged %>% filter(msex=="Female")
 
 ```
 
-##### Male
+### Male
 **Model 1**
 ```{r, message=FALSE, warning=FALSE }
 
 model1_male <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean, ros_merged_male)
 
 
-#summary(model)
-
-# tbl_regression(model1) %>% add_significance_stars(
-#     hide_p = FALSE, hide_ci = FALSE,
-#     pattern = "{p.value}{stars}"
-#   )
-
 ```
 
 **Model 2**
-```{r, message=FALSE, warning=FALSE }
-
-#model2_male <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean + msex, ros_merged_male)
-#summary(model)
-
-
-# tbl_regression(model2) %>% add_significance_stars(
-#     hide_p = FALSE, hide_ci = FALSE,
-#     pattern = "{p.value}{stars}"
-#   )
-```
+Not needed as no sex
 
 **Model 3**
 3. lm(Rosner LTL ~ Age + case + sex + education + BMI
@@ -4168,10 +4115,6 @@ model1_male <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean, ros_merged_male)
 model3_male <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean +
                educ_ord + bmi_bin, ros_merged_male)
 
-# tbl_regression(model3) %>% add_significance_stars(
-#     hide_p = FALSE, hide_ci = FALSE,
-#     pattern = "{p.value}{stars}"
-#   )
 ```
 
 
@@ -4185,27 +4128,14 @@ model4_male <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean +
                cidi_q12 + cidi_q13 + cidi_q14 + cidi_q15 + cidi_q16 +
                cidi_q17, ros_merged_male)
 
-# tbl_regression(model4_all) %>% add_significance_stars(
-#     hide_p = FALSE, hide_ci = FALSE,
-#     pattern = "{p.value}{stars}"
-#   )
-
 ```
 
 
 
 ```{r}
-# 
-# row_names <- c("Age", "Filtered Case", "Unfiltered Case")
-# summary_table <- data.frame(matrix(NA, nrow = length(row_names), ncol = 0))
-# 
-# 
 summary_table = NULL
 
 model_list <- c("model1_male", "model3_male", "model4_male")
-
-# var <- c("age_at_iview","control", "is_case_cleanHealthy Case",
-#          "is_case_cleanUnhealthy Case")
 
 results <- NULL
 
@@ -4243,17 +4173,11 @@ for (i in 1:length(model_list)) {
 df <- as.data.frame(results)
 colnames(df)<-c("Model", "Coefficient", "N", "Beta", "95% CI", "P")
 
-kable(df, format = "html", caption="Sets ACE") %>%
-  kable_styling(full_width = FALSE)
-
-
 kable(df)
 ```
 
 
-
-
-##### Female
+### Female
 **Model 1**
 ```{r, message=FALSE, warning=FALSE }
 
@@ -4261,6 +4185,8 @@ model1_female <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean, ros_merged_female)
 
 
 ```
+**Model 2**
+Not needed as no sex
 
 **Model 3**
 3. lm(Rosner LTL ~ Age + case + sex + education + BMI
@@ -4271,20 +4197,19 @@ model3_female <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean +
 
 ```
 
-
+**Model 4**
 ```{r}
 
 model4_female <-  lm(ltl_adj2 ~ age_at_iview + is_case_clean +
                educ_ord + bmi_bin + khat_3cat + alcohol_3cat + cannabis_3cat +
                alcohol_3cat + tobacco_3cat +
                cidi_q1 + cidi_q2 + cidi_q3 + cidi_q4 + cidi_q5 + 
-                 #cidi_q6 +
+                #cidi_q6 +
                cidi_q7 + cidi_q8 + cidi_q9 + cidi_q10 + cidi_q11 +
                #cidi_q12 
                cidi_q13 + cidi_q14 + cidi_q15 + cidi_q16 +
                cidi_q17, ros_merged_female)
 
-summary(model4_female)
 
 ```
 
@@ -4334,19 +4259,6 @@ for (i in 1:length(model_list)) {
 df <- as.data.frame(results)
 colnames(df)<-c("Model", "Coefficient", "N", "Beta", "95% CI", "P")
 
-kable(df, format = "html", caption="Sets ACE") %>%
-  kable_styling(full_width = FALSE)
-
-
 kable(df)
-```
-
-
-## Table No missing   
-
-```{r}
-
-table1(~  factor(msex) + age_at_iview | is_case_f, data=tel_all_nomissing)
-
 ```
 
