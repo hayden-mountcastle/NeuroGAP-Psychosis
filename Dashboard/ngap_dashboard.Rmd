@@ -1,0 +1,1071 @@
+---
+title: "neurogApp"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    logo: /Users/ham593/Dropbox (Harvard University)/NeuroGAP-Psychosis/All study data/NeuroGAP Dashboard/Images/Harvard_shield-Public_Health.png
+    vertical_layout: scroll
+    source_code: embed
+    base_font: !expr bslib::font_google("Prompt")
+    #vertical_layout: scroll
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+
+#Libraries
+library(flexdashboard)
+library(shiny)
+library(tidyverse)
+library(ggridges)
+library(gt)
+library(table1)
+library(shinydashboard)
+library(plotly)
+library(reactable)
+library(treemap)
+library(kableExtra)
+library(knitr)
+library(ggpubr)
+library(zoo)
+
+
+
+
+#LOAD DATA AND CLEANING
+
+me <- "ham593"
+ngap <- read.csv(path.expand("~/Dropbox (Harvard University)/NeuroGAP-Psychosis/Data Working Group (DAWG)/Data/Data Freeze #8 (Final Data Freeze)/NeuroGAP-P_Release8_as-of-2023-08-29/NeuroGAP-P_Release8_as-of-2023-08-29.csv"))
+
+#Add cleaned dates
+ngap <- ngap %>% mutate(date = as.Date(paste0(consent_year, "-", 
+                             consent_month, "-01"))) 
+
+
+#Cleaning data
+
+# Demographics
+
+ngap <- ngap %>% mutate(
+  
+  study_country_f = factor(case_when(
+    study_country == 1 ~ "South Africa",
+    study_country == 2 ~ "Kenya",
+    study_country == 3 ~ "Uganda",
+    study_country == 4 ~ "Ethiopia")),
+  
+  
+  is_case_f = factor(case_when(
+    is_case == 1 ~ "Case",
+    is_case == 0 ~ "Control"
+  )),
+  
+  msex_f = factor(case_when(
+    msex == 1 ~ "Male",
+    msex == 0 ~ "Female"
+  )),
+
+  age_cat_dec = factor(case_when(
+          age_at_iview <= 29 ~ "18-29",
+          age_at_iview > 29 & age_at_iview <= 44 ~ "30-44",
+          age_at_iview > 44 & age_at_iview <= 64 ~ "45-64",  
+          age_at_iview >= 64 ~ "65+",                          
+        )),
+
+  living_arrange_f = factor(case_when(
+    living_arrange == 1 ~ "Alone",
+    living_arrange == 2 ~ "Parental family",
+    living_arrange == 3 ~ "Spouse/partner",
+    living_arrange == 4 ~ "Other relatives",
+    living_arrange == 5 ~ "Friends"
+  )),
+  
+   education_f = factor(case_when(
+     education == 1 ~ "None",
+     education == 2 ~ "Some primary school",
+     education == 3 ~ "Finished primary school",
+     education == 4 ~ "Some secondary school",
+     education == 5 ~ "Finished secondary school",
+     education == 6 ~ "Some college",
+     education == 7 ~ "Finished college"
+)),
+
+  hub_site_f = factor(case_when(
+    hub_site == 1 ~ "Cape Town",
+    hub_site == 2 ~ "Walter Sisulu",
+    hub_site == 4 ~ "Moi",
+    hub_site == 5 ~ "KEMRI",
+    hub_site == 6 ~ "Makerere",
+    hub_site == 7 ~ "Addis Ababa"
+  )),
+
+
+  psychosis_primary_f = factor(case_when(
+    psychosis_primary == 2 ~ "Bipolar",
+    psychosis_primary == 6 ~ "Mania NOS",
+    psychosis_primary == 7 ~ "Psychotic Disorder NOS",
+    psychosis_primary == 8 ~ "Schizophrenia",
+    psychosis_primary == 11 ~ "Schizoaffective Disorder",
+    psychosis_primary == 777 ~ "Unknown"
+  ))
+)
+
+
+  
+  
+#Combined LEC
+ngap <- ngap %>% mutate(lec_q1_all = factor(case_when(
+                                      lec_q1_1 == 1 | lec_q1_2 == 1 ~ 1,
+                                      lec_q1_1 == 0 & lec_q1_2 == 0 ~ 0,
+                                      is.na(lec_q1_1) & lec_q1_2 == 0 ~ 0,
+                                      lec_q1_1==0 & is.na(lec_q1_2) ~ 0,
+                                      TRUE ~ NA_integer_), levels = c(1,0),
+                                      labels = c("Yes", "No")),
+                lec_q2_all = factor(case_when(
+                                      lec_q2_1 == 1 | lec_q2_2 == 1 ~ 1,
+                                      lec_q2_1 == 0 & lec_q2_2 == 0 ~ 0,
+                                      is.na(lec_q2_1) & lec_q2_2 == 0 ~ 0,
+                                      lec_q2_1==0 & is.na(lec_q2_2) ~ 0,
+                                      TRUE ~ NA_integer_), levels = c(1,0),
+                                      labels = c("Yes", "No")),
+                
+                lec_q3_all = factor(case_when(
+                                      lec_q3_1 == 1 | lec_q3_2 == 1 ~ 1,
+                                      lec_q3_1 == 0 & lec_q3_2 == 0 ~ 0,
+                                      is.na(lec_q3_1) & lec_q3_2 == 0 ~ 0,
+                                      lec_q3_1==0 & is.na(lec_q3_2) ~ 0,
+                                      TRUE ~ NA_integer_), levels = c(1,0),
+                                      labels = c("Yes", "No")),
+                lec_q4_all = factor(case_when(
+                                      lec_q4_1 == 1 | lec_q4_2 == 1 ~ 1,
+                                      lec_q4_1 == 0 & lec_q4_2 == 0 ~ 0,
+                                      is.na(lec_q4_1) & lec_q4_2 == 0 ~ 0,
+                                      lec_q4_1==0 & is.na(lec_q4_2) ~ 0,
+                                      TRUE ~ NA_integer_), levels = c(1,0),
+                                      labels = c("Yes", "No")),
+                lec_q5_all = factor(case_when(
+                                      lec_q5_1 == 1 | lec_q5_2 == 1 ~ 1,
+                                      lec_q5_1 == 0 & lec_q5_2 == 0 ~ 0,
+                                      is.na(lec_q5_1) & lec_q5_2 == 0 ~ 0,
+                                      lec_q5_1==0 & is.na(lec_q5_2) ~ 0,
+                                      TRUE ~ NA_integer_), levels = c(1,0),
+                                      labels = c("Yes", "No")),
+                lec_q6_all = factor(case_when(
+                                      lec_q6_1 == 1 | lec_q6_2 == 1 ~ 1,
+                                      lec_q6_1 == 0 & lec_q6_2 == 0 ~ 0,
+                                      is.na(lec_q6_1) & lec_q6_2 == 0 ~ 0,
+                                      lec_q6_1==0 & is.na(lec_q6_2) ~ 0,
+                                      TRUE ~ NA_integer_), levels = c(1,0),
+                                      labels = c("Yes", "No")),
+                lec_q7_all = factor(case_when(
+                                      lec_q7_1 == 1 | lec_q7_2 == 1 ~ 1,
+                                      lec_q7_1 == 0 & lec_q7_2 == 0 ~ 0,
+                                      is.na(lec_q7_1) & lec_q7_2 == 0 ~ 0,
+                                      lec_q7_1==0 & is.na(lec_q7_2) ~ 0,
+                                      TRUE ~ NA_integer_), levels = c(1,0),
+                                     labels = c("Yes", "No")),
+                lec_q8_all = factor(case_when(
+                                      lec_q8_1 == 1 | lec_q8_2 == 1 ~ 1,
+                                      lec_q8_1 == 0 & lec_q8_2 == 0 ~ 0,
+                                      is.na(lec_q8_1) & lec_q8_2 == 0 ~ 0,
+                                      lec_q8_1==0 & is.na(lec_q8_2) ~ 0,
+                                      TRUE ~ NA_integer_), levels = c(1,0),
+                                      labels = c("Yes", "No")),
+                lec_q9_all = factor(case_when(
+                                      lec_q9_1 == 1 | lec_q9_2 == 1 ~ 1,
+                                      lec_q9_1 == 0 & lec_q9_2 == 0 ~ 0,
+                                      is.na(lec_q9_1) & lec_q9_2 == 0 ~ 0,
+                                      lec_q9_1==0 & is.na(lec_q9_2) ~ 0,
+                                      TRUE ~ NA_integer_), levels = c(1,0),
+                                      labels = c("Yes", "No")),
+                lec_q10_all = factor(case_when(
+                                      lec_q10_1 == 1 | lec_q10_2 == 1 ~ 1,
+                                      lec_q10_1 == 0 & lec_q10_2 == 0 ~ 0,
+                                      is.na(lec_q10_1) & lec_q10_2 == 0 ~ 0,
+                                      lec_q10_1==0 & is.na(lec_q10_2) ~ 0,
+                                      TRUE ~ NA_integer_), levels = c(1,0),
+                                     labels = c("Yes", "No")),
+                lec_q11_all = factor(case_when(
+                                      lec_q11_1 == 1 | lec_q11_2 == 1 ~ 1,
+                                      lec_q11_1 == 0 & lec_q11_2 == 0 ~ 0,
+                                      is.na(lec_q11_1) & lec_q11_2 == 0 ~ 0,
+                                      lec_q11_1==0 & is.na(lec_q11_2) ~ 0,
+                                      TRUE ~ NA_integer_), levels = c(1,0),
+                                     labels = c("Yes", "No")),
+                lec_q12_all = factor(case_when(
+                                      lec_q12_1 == 1 | lec_q12_2 == 1 ~ 1,
+                                      lec_q12_1 == 0 & lec_q12_2 == 0 ~ 0,
+                                      is.na(lec_q12_1) & lec_q12_2 == 0 ~ 0,
+                                      lec_q12_1==0 & is.na(lec_q12_2) ~ 0,
+                                      TRUE ~ NA_integer_), levels = c(1,0),
+                                     labels = c("Yes", "No")),
+                lec_q13_all = factor(case_when(
+                                      lec_q13_1 == 1 | lec_q13_2 == 1 ~ 1,
+                                      lec_q13_1 == 0 & lec_q13_2 == 0 ~ 0,
+                                      is.na(lec_q13_1) & lec_q13_2 == 0 ~ 0,
+                                      lec_q13_1==0 & is.na(lec_q13_2) ~ 0,
+                                      TRUE ~ NA_integer_), levels = c(1,0),
+                                     labels = c("Yes", "No")),
+                lec_q14_all = factor(case_when(
+                                      lec_q14_2 == 1 ~ 1,
+                                      lec_q14_2 == 0 ~ 0,
+                                      TRUE ~ NA_integer_), levels = c(1,0),
+                                     labels = c("Yes", "No")),
+                lec_q15_all = factor(case_when(
+                                      lec_q15_2 == 1 ~ 1,
+                                      lec_q15_2 == 0 ~ 0,
+                                      TRUE ~ NA_integer_), levels = c(1,0),
+                                     labels = c("Yes", "No")),
+                lec_q16_all = factor(case_when(
+                                      lec_q16_1 == 1  ~ 1,
+                                      lec_q16_1 == 0 ~ 0,
+                                      TRUE ~ NA_integer_), levels = c(1,0),
+                                     labels = c("Yes", "No")),
+                lec_q17_all = factor(case_when(
+                                      lec_q17_1 == 1 | lec_q17_2 == 1 ~ 1,
+                                      lec_q17_1 == 0 & lec_q17_2 == 0 ~ 0,
+                                      is.na(lec_q17_1) & lec_q17_2 == 0 ~ 0,
+                                      lec_q17_1==0 & is.na(lec_q17_2) ~ 0,
+                                      TRUE ~ NA_integer_), levels = c(1,0),
+                                     labels = c("Yes", "No"))
+)
+
+
+#ASSIST
+ngap <- ngap %>% mutate(across(starts_with("assist_"),  ~ factor(.x, levels = c(1, 0),
+                                                                 labels = c("Yes", "No"))))
+
+#CIDI 
+ngap <- ngap %>% mutate(across(starts_with("cidi_"),  ~ factor(.x, levels = c(1, 0),
+                                                               labels = c("Yes", "No"))))
+
+#PHQ-9
+phq_list <- c("phq_littleinterest", "phq_down", "phq_asleep",
+              "phq_tired", "phq_appetite", "phq_self", "phq_focus",
+              "phq_pace", "phq_suicide")
+ngap <- ngap %>% mutate(across(phq_list,  ~ factor(.x, levels = c(0, 1, 2,3),
+                                             labels = c("Not at all", "Several days",
+                                                        "More than half the days",
+                                                        "Nearly every day"))))
+
+
+#PSQ 
+psq_list <- c("hypomania_1", "hypomania_2", "hypomania_3", 
+              "insertion_1",  "insertion_2",  
+              "paranoia_1",  "paranoia_2",  "paranoia_3", 
+              "strangexp_1",  "strangexp_2",  
+              "hallucination_1",  "hallucination_2")
+
+ngap <- ngap %>% mutate(across(psq_list,  ~ factor(.x, levels = c(1, 0, 777),
+                                             labels = c("Yes", "No",
+                                                        "Unknown"))))
+#Label Variables
+
+label(ngap$study_country_f) <- "Study Country"
+label(ngap$age_at_iview)    <- "Age (con't)"
+label(ngap$age_cat_dec)     <- "Age (cat)"
+label(ngap$is_case_f) <- "Case Status"
+label(ngap$msex_f) <- "Sex"
+label(ngap$hub_site_f) <- "Hub Site"
+label(ngap$living_arrange_f) <- "Living Arrangement"
+label(ngap$education_f) <- "Education"
+
+
+#LEC
+label(ngap$lec_q1_all) <- "Natural Disasters"
+label(ngap$lec_q2_all) <- "Fire or explosion"
+label(ngap$lec_q3_all) <- "Transportation accident"
+label(ngap$lec_q4_all) <- "Serious accident"
+label(ngap$lec_q5_all) <- "Exposure to toxic substance"
+label(ngap$lec_q6_all) <- "Physical assault"
+label(ngap$lec_q7_all) <- "Assault with a weapon"
+label(ngap$lec_q8_all) <- "Sexual assault"
+label(ngap$lec_q9_all) <- "Other sexual experience"
+label(ngap$lec_q10_all) <- "Combat or exposure to war-zone"
+label(ngap$lec_q11_all) <- "Captivity"
+label(ngap$lec_q12_all) <- "Life-threatening illness "
+label(ngap$lec_q13_all) <- "Severe human suffering"
+label(ngap$lec_q14_all) <- "Sudden violent death"
+label(ngap$lec_q15_all) <- "Sudden accidental death"
+label(ngap$lec_q16_all) <- "Serious injury caused to someone else"
+label(ngap$lec_q17_all) <- "Other stressful event"
+
+
+
+#ASSIST
+label(ngap$assist_tobacco) <- "Tobacco"
+label(ngap$assist_alcohol) <- "Alcohol"
+label(ngap$assist_khat) <- "Khat"
+label(ngap$assist_cannabis) <- "Cannabis"
+label(ngap$assist_cocaine) <- "Cocaine"
+label(ngap$assist_amphet) <- "Amphet"
+label(ngap$assist_inhalants) <- "Inhalants"
+label(ngap$assist_otcmeds) <- "Over the counter"
+label(ngap$assist_sedatives) <- "Sedatives"
+label(ngap$assist_hallucin) <- "Hallucinogens"
+label(ngap$assist_opioids) <- "Opioids"
+label(ngap$assist_other) <- "Other"
+
+
+
+#CIDI
+label(ngap$cidi_q1) <- "Arthritis or rheumatism"
+label(ngap$cidi_q2) <- "Chronic back or neck problems"
+label(ngap$cidi_q3) <- "Frequent or severe headaches"
+label(ngap$cidi_q4) <- "Any other chronic pain?"
+label(ngap$cidi_q5) <- "Seasonal allergies like hay fever?"
+label(ngap$cidi_q6) <- "A stroke?"
+label(ngap$cidi_q7) <- "A heart attack?"
+label(ngap$cidi_q8) <- "Heart disease?"
+label(ngap$cidi_q9) <-  "High Blood Pressure?"
+label(ngap$cidi_q10) < "Asthma"
+label(ngap$cidi_q11) <- "Tuberculosis"
+label(ngap$cidi_q12) <- "Any other chronic lung disease, like COPD or emphysema"
+label(ngap$cidi_q13) <- "Diabetes or high blood sugar"
+label(ngap$cidi_q14) <- "An ulcer in your stomach or intestine"
+label(ngap$cidi_q15) <- "HIV infection or AIDS"
+label(ngap$cidi_q16) <- "Epilepsy or seizures"
+label(ngap$cidi_q17) <- "Cancer"
+label(ngap$cidi_other) <- "Other"
+
+
+#Vitals 
+
+label(ngap$bp_over) <- "Blood Pressure Over"
+label(ngap$bp_under) <- "Blood Pressure Under"
+label(ngap$heart_bpm) <- "Heart Rate"
+label(ngap$height_cm) <- "Height"
+label(ngap$weight_kg) <- "Weight"
+label(ngap$bmi) <- "Body Mass Index (BMI)"
+
+
+#PHQ-9
+
+label(ngap$phq_littleinterest) <- "Little interest or pleasure in doing things"
+label(ngap$phq_down) <- "Feeling down, depressed, or hopeless"
+label(ngap$phq_asleep) <- "Trouble falling or staying asleep, or sleeping too much"
+label(ngap$phq_tired) <- "Feeling tired or having little energy"
+label(ngap$phq_appetite) <- "Poor appetite or overeating"
+label(ngap$phq_self) <- "Feeling bad about yourself, or that you are a failure, or have let yourself or your family down"
+label(ngap$phq_focus) <- "Trouble concentrating on things, such as reading the newspaper or watching television"
+label(ngap$phq_pace) <- "Moving or speaking so slowly that other people could have noticed. Or the opposite -being so fidgety or restless that you have been moving around a lot more than usual"
+label(ngap$phq_suicide) <- "Thoughts that you would be better off dead, or of hurting yourself in some way"
+
+
+#PSQ
+label(ngap$hypomania_1) <- "Have there been times when you felt very happy indeed without a break for days on end?"
+label(ngap$insertion_1) <- "Have you ever felt that your thoughts were directly interfered with or controlled by some outside force or person?"
+label(ngap$paranoia_1) <- "Have there been times when you felt that people were against you?"
+label(ngap$strangexp_1) <- "Have there been times when you felt that something strange was going on?"
+label(ngap$hallucination_1) <- "Have there been times when you heard or saw things that other
+people couldn’t?"
+
+
+#Chart Review
+label(ngap$psychosis_primary_f) <- "Primary Psychosis"
+
+
+
+
+base_path <- "~/Dropbox (Harvard University)/NeuroGAP-Psychosis/All study data/NeuroGAP Dashboard/Images"
+
+# Generate the full path using file.path for better cross-platform compatibility
+image_path <- file.path(path.expand(base_path), "harvardchanlogo.png")
+
+```
+
+Home
+==================================
+
+Row {data-width=2000}
+---------------------
+
+<h1> **Welcome!** </h1>
+
+<center>
+<h3> This is a data dashboard for **NeuroGAP Psychosis**. </h3>
+<center> 
+
+<br>
+<br>
+
+
+<div style="text-align: left; max-width: 800px; margin: 0 auto;">
+NeuroGAP-Psychosis endeavors to broaden our understanding of the genetic factors that contribute to schizophrenia and bipolar disorder. This genome-wide association study (GWAS) is being carried out in partnership with five academic and research institutions in south and east Africa:
+
+- Addis Ababa University, Ethiopia
+- KEMRI-Wellcome Trust Research Programme, Kenya
+- Moi University, Kenya
+- University of Cape Town, South Africa
+- Makerere University, Uganda
+
+The NeuroGAP-Psychosis team — comprising researchers, clinicians, project managers, and others at Broad and participating institutions — aims to collect and genotype saliva samples from more than 17,000 patients with schizophrenia or bipolar disorder, and a equal number of matched controls, by 2022. 
+
+</div>
+
+View more information [here](https://www.broadinstitute.org/stanley-center-psychiatric-research/stanley-global/neuropsychiatric-genetics-african-populations-neurogap).
+<br>
+<br>
+<br>
+<br>
+
+```{r}
+
+ngap_map_path <- file.path(path.expand("~/Dropbox (Harvard University)/NeuroGAP-Psychosis/All study data/NeuroGAP Dashboard/Images/ngap_map.png"))
+#knitr::include_graphics(ngap_map_path)
+
+```
+
+<!-- ![](/Users/`r me`/Dropbox (Harvard University)/NeuroGAP-Psychosis/All study data/NeuroGAP Dashboard/Images/ngap_map.png) -->
+
+
+</center>
+
+
+<br>
+<br>
+
+```{r}
+harv_logo_path <- file.path(path.expand("~/Dropbox (Harvard University)/NeuroGAP-Psychosis/All study data/NeuroGAP Dashboard/Images/harvardchanlogo.png"))
+#knitr::include_graphics(harv_logo_path)
+
+
+stan_logo_path <- file.path(path.expand("~/Dropbox (Harvard University)/NeuroGAP-Psychosis/All study data/NeuroGAP Dashboard/Images/stanleycenterlogo.png"))
+#knitr::include_graphics(stan_logo_path)
+```
+
+<!--![](/Users/`r me`/Dropbox (Harvard University)/NeuroGAP-Psychosis/All study data/NeuroGAP Dashboard/Images/harvardchanlogo.png)
+
+![](/Users/`r me`/Dropbox (Harvard University)/NeuroGAP-Psychosis/All study data/NeuroGAP Dashboard/Images/stanleycenterlogo.png)-->
+
+
+# Study overview {data-navmenu="NGAP Protocol"}
+<center> 
+
+<h2>**NGAP Tools**</h2>
+
+
+```{r}
+parent_tools_path <- file.path(path.expand("~/Dropbox (Harvard University)/NeuroGAP-Psychosis/All study data/NeuroGAP Dashboard/Images/ngap_parent_tools.png"))
+#knitr::include_graphics(parent_tools_path)
+```
+
+<br>
+<center>
+<h2>**Data collection overview**</h2>
+</center>
+
+```{r}
+ngap_protocol_path <- file.path(path.expand("~/Dropbox (Harvard University)/NeuroGAP-Psychosis/All study data/NeuroGAP Dashboard/Images/ngap_protocol.png"))
+#knitr::include_graphics(ngap_protocol_path)
+```
+<br>
+<center>
+Stevenson A, Akena D, Stroud RE, et alNeuropsychiatric Genetics of African Populations-Psychosis (NeuroGAP-Psychosis): a case-control study protocol and GWAS in Ethiopia, Kenya, South Africa and UgandaBMJ Open 2019;9:e025469. doi: 10.1136/bmjopen-2018-025469
+</center>
+
+# Tool Specifics {data-navmenu="NGAP Protocol"}
+
+<center> 
+<strong>**To add tool details / codebook here ... **</strong>
+</center>
+# Table {data-navmenu="Explore Data"}
+
+Column {.sidebar}
+----
+```{r}
+
+div(
+  HTML("<strong>Choose filters</strong>")
+)
+
+selectInput(inputId = "study_country", label = "Country", 
+             choices = c("South Africa" = 1,
+                         "Kenya"= 2,
+                         "Uganda"= 3,
+                         "Ethiopia"= 4,
+                         "All" = "All"),
+             selected="All"
+              )
+
+selectInput("SexSelect", label = "Sex", 
+             choices = c("Male" = 1,
+                         "Female"= 0,
+                         "All" = "All"),
+             selected="All"
+              )
+
+selectInput("CaseSelect", label = "Case Status", 
+             choices = c("Case" = 1,
+                         "Control"= 0,
+                         "All" = "All"),
+             selected="All"
+              )
+
+
+
+dateRangeInput(
+  inputId = "dateRange",
+  label = "Select Date Range",
+  start = min(ngap$date),     
+  end = max(ngap$date),         
+  min = min(ngap$date),        
+  max = max(ngap$date),        
+  format = "yyyy-mm",
+  startview = "month",
+  weekstart = 0,
+  language = "en",
+  width = NULL,
+  separator = " to ", 
+  autoclose = TRUE
+)
+
+
+div(HTML(
+    paste0(
+      "<small> <li> Only YYYY-MM data available </li> </small>",
+      "<small> <li>Please select YYYY-MM-01 dates for correct range </li> </small>",
+      "<small> <li>Min recruitment date: ", format(min(ngap$date), "%Y-%m"), "</li> </small>",
+      "<small> <li>Max recruitment date: ", format(max(ngap$date), "%Y-%m"), "</li> </small>"
+    )
+  ))
+
+
+div(
+  HTML("<br>
+       <strong>Table Columns </strong>")
+)
+
+selectInput(inputId = "header_table", label = "Choose Columns", 
+             choices = c("Country" = "study_country",
+                         "Sex" = "msex",
+                         "Case Status" = "is_case"),
+             selected="Country"
+              )
+
+div(
+  HTML("<strong>Rows</strong>")
+)
+
+selectInput(inputId = "row_table", label = "Choose Row", 
+             choices = c("Demographics" = "demographics",
+                         "LEC" = "lec",
+                         "ASSIST" = "assist",
+                         "CIDI" = "cidi",
+                         "Vitals" = "vitals",
+                         "PHQ-9" = "phq9",
+                         "PSQ + Psychosis Primary" = "psq_chart"
+                         ),
+             selected="Demographics"
+              )
+
+
+```
+
+
+
+Row {data-height=3000}
+-----------------------------------------------------------------------
+
+### Table - Summary Statistics
+
+```{r}
+
+renderTable({
+
+  if (input$header_table == "study_country") {
+    head_var <- "study_country_f"
+  } else if (input$header_table == "msex") {
+    head_var <- "msex_f"
+  }  else if (input$header_table == "is_case") {
+    head_var <- "is_case_f"
+  }
+
+  if (input$row_table == "demographics") {
+    row_vars <- "age_at_iview + age_cat_dec + is_case_f + msex_f + hub_site_f +
+    living_arrange_f + education_f"
+
+  } else if (input$row_table == "lec") {
+    lec_list <- paste0("lec_q", 1:17, "_all")
+    row_vars <- paste(lec_list, collapse = " + ")
+
+  } else if (input$row_table == "assist") {
+
+    row_vars <- "assist_tobacco + assist_alcohol +
+    assist_khat + assist_cannabis + assist_cocaine +
+    assist_amphet + assist_inhalants + assist_otcmeds +
+    assist_sedatives + assist_hallucin + assist_opioids +
+    assist_other"
+  } else if (input$row_table == "cidi") {
+    
+    row_vars <- "cidi_q1 + cidi_q2 + cidi_q3 + cidi_q4 +
+    cidi_q5 + cidi_q6 + cidi_q7 + cidi_q8 + cidi_q9 + cidi_q10 +
+    cidi_q11 + cidi_q12 + cidi_q13 + cidi_q14 + cidi_q15 + cidi_q16 +
+    cidi_q17 + cidi_other"
+    
+  } else if (input$row_table == "vitals") {
+    
+    row_vars <- "bp_over + bp_under + heart_bpm + 
+    height_cm + weight_kg + bmi"
+    
+  } else if (input$row_table == "phq9") {
+    
+    row_vars <- "phq_littleinterest + phq_down+ phq_asleep +
+              phq_tired + phq_appetite + phq_self + phq_focus +
+              phq_pace + phq_suicide"
+    
+  } else if (input$row_table == "psq_chart") {
+    
+    row_vars <- "hypomania_1 + 
+              insertion_1 + 
+              paranoia_1 + 
+              strangexp_1 +  
+              hallucination_1 + psychosis_primary_f"
+  } 
+  
+
+
+  caption = paste("Recruitment in", input$study_country, "during", input$YearSelect)
+
+  ngap %>% filter(
+    str_detect(study_country,
+                                if_else(input$study_country == "All",".*",
+                                        input$study_country)),
+                                (date >= input$dateRange[1] & 
+                                   date <= input$dateRange[2]),
+                                if (input$SexSelect == "All") {
+                                     msex %in% c(0,1)
+                                   } else {
+                                     msex == input$SexSelect
+                                   },
+                                if (input$CaseSelect == "All") {
+                                    is_case %in% c(0, 1) | is.na(is_case)
+                                   } else {
+                                     is_case == input$CaseSelect
+                                   }
+
+                            ) %>%
+      table1(as.formula(paste("~", row_vars, "|", head_var)), data=.,
+             caption=caption)
+
+  }
+)
+
+
+
+
+
+```
+
+
+# Figures {data-navmenu="Explore Data"}
+
+Column {.sidebar}
+----
+```{r}
+
+div(
+  HTML("<strong>Choose filters</strong>")
+)
+
+selectInput(inputId = "study_country_fig", label = "Country", 
+             choices = c("South Africa" = 1,
+                         "Kenya"= 2,
+                         "Uganda"= 3,
+                         "Ethiopia"= 4,
+                         "All" = "All"),
+             selected="All"
+              )
+
+selectInput("SexSelect_fig", label = "Sex", 
+             choices = c("Male" = 1,
+                         "Female"= 0,
+                         "All" = "All"),
+             selected="All"
+              )
+
+
+selectInput("CaseSelect_fig", label = "Case Status", 
+             choices = c("Case" = 1,
+                         "Control"= 0,
+                         "All" = "All"),
+             selected="All"
+              )
+
+dateRangeInput(
+  inputId = "dateRange_fig",
+  label = "Select Date Range",
+  start = min(ngap$date),        # default start date
+  end = max(ngap$date),          # default end date
+  min = min(ngap$date),          # minimum selectable date
+  max = max(ngap$date),          # maximum selectable date
+  format = "yyyy-mm",
+  startview = "month",
+  weekstart = 0,
+  language = "en",
+  width = NULL,
+  separator = " to ",  # separator between start and end dates in the UI
+  autoclose = TRUE
+)
+
+div(HTML(
+    paste0(
+      "<small> <li> Only YYYY-MM data available </li> </small>",
+      "<small> <li>Please select YYYY-MM-01 dates for correct range </li> </small>",
+      "<small> <li>Min recruitment date: ", format(min(ngap$date), "%Y-%m"), "</li> </small>",
+      "<small> <li>Max recruitment date: ", format(max(ngap$date), "%Y-%m"), "</li> </small>"
+    )
+  ))
+
+```
+
+
+
+Row {data-height=300}
+-----------------------------------------------------------------------
+
+### Recruitment
+
+```{r}
+
+# Sample renderPlot structure
+renderPlot({
+
+    # Summarize data to get cumulative counts
+    result <- ngap %>% filter(
+    str_detect(study_country,
+                  if_else(input$study_country_fig == "All",".*",
+                          input$study_country_fig)),
+                          (date >= input$dateRange_fig[1] & 
+                          date <= input$dateRange_fig[2]),
+                  if (input$SexSelect_fig == "All") {
+                       msex %in% c(0,1)
+                     } else {
+                       msex == input$SexSelect_fig
+                     },
+                  if (input$CaseSelect_fig == "All") {
+                      is_case %in% c(0, 1) | is.na(is_case)
+                     } else {
+                       is_case == input$CaseSelect_fig
+                     }
+
+              ) %>%
+        group_by(hub_site_f, date) %>%
+        summarise(cumulative_count = n(), .groups = 'drop')
+
+    min_date <- min(result$date)
+    max_date <- max(result$date)
+    # Creating a reference data frame for a consistent time series
+    reference_df <- expand.grid(
+        hub_site_f = unique(ngap$hub_site_f),
+        date = seq(min(ngap$date), max(ngap$date), by = "1 month")
+    )
+
+    # Merge result with reference to fill gaps with NA, replace NA with 0
+    result <- merge(reference_df, result, by = c("hub_site_f", "date"), all.x = TRUE)
+    result$cumulative_count[is.na(result$cumulative_count)] <- 0
+
+    # Calculate cumulative total per hub_site_f
+    result <- result %>%
+        group_by(hub_site_f) %>%
+        arrange(date) %>%
+        mutate(total_count = cumsum(cumulative_count))
+
+    # Annotate data: getting the total as of March 2020
+    annotate_y <- result %>% filter(date == as.Date("2020-03-01"))
+    annotate_y_sum <- sum(annotate_y$total_count)
+    
+    result$hub_site_f <- factor(result$hub_site_f, levels = unique(result$hub_site_f))
+    # Plot
+    p <- ggplot(data = result, aes(x = date, y = total_count, fill = hub_site_f, color = hub_site_f)) + 
+        geom_area(alpha = 0.5, position = "stack") + 
+        theme_classic() + 
+        scale_x_date(breaks = seq(min(result$date), max(result$date), by = "1 year"),
+                     date_labels = "%Y") +
+        xlim(min_date, max_date) + 
+        xlab("") + 
+        ylab("Participants (n)") +
+       # ylim(0, 43000) + 
+        guides(fill = guide_legend(title = "Site"), color = FALSE) +
+        ggtitle("Recruitment across sites for NeuroGAP-Psychosis",
+                subtitle = "In order of first recruitment") 
+ 
+
+    # Output the plot
+    p
+})
+
+```
+
+
+### Chart Review 1 (Missing Removed)
+
+```{r}
+
+
+renderPlotly({
+  
+plotly_g <- ngap %>%
+    filter(
+    str_detect(study_country,
+                  if_else(input$study_country_fig == "All",".*",
+                          input$study_country_fig)),
+                          (date >= input$dateRange_fig[1] & 
+                          date <= input$dateRange_fig[2]),
+                  if (input$SexSelect_fig == "All") {
+                       msex %in% c(0,1)
+                     } else {
+                       msex == input$SexSelect_fig
+                     },
+                  if (input$CaseSelect_fig == "All") {
+                      is_case %in% c(0, 1) | is.na(is_case)
+                     } else {
+                       is_case == input$CaseSelect_fig
+                     }
+
+              ) %>%
+  filter(!is.na(psychosis_primary_f)) %>%
+  group_by(study_country_f, psychosis_primary_f) %>%
+  summarize(n = n(), .groups = 'drop') %>%
+  mutate(psychosis_primary_f = fct_reorder(psychosis_primary_f, n, .desc = TRUE)) %>%
+  ggplot(aes(x = psychosis_primary_f, y = n, fill = psychosis_primary_f)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~ study_country_f) + 
+  labs(x = "", y = "Count", fill = "Psychosis Type") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        strip.text = element_text(face = "bold"),
+        axis.text.y  = element_text(face = "bold")) +  # Removes the legend
+  coord_flip()
+
+ggplotly(plotly_g)
+
+})
+```
+
+
+
+Row {data-height=400}
+-----------------------------------------------------------------------
+
+### Pie Chart - Case
+
+```{r}
+
+renderPlot({
+  
+  
+  p_case <- ngap %>%  filter(
+    str_detect(study_country,
+                  if_else(input$study_country_fig == "All",".*",
+                          input$study_country_fig)),
+                          (date >= input$dateRange_fig[1] & 
+                          date <= input$dateRange_fig[2]),
+                  if (input$SexSelect_fig == "All") {
+                       msex %in% c(0,1)
+                     } else {
+                       msex == input$SexSelect_fig
+                     },
+                  if (input$CaseSelect_fig == "All") {
+                      is_case %in% c(0, 1) | is.na(is_case)
+                     } else {
+                       is_case == input$CaseSelect_fig
+                     }
+
+              ) %>%
+  group_by(study_country_f, is_case_f) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  group_by(study_country_f) %>%
+  mutate(total = sum(n),
+         percent = round((n / total) * 100, 0)) %>%
+  ungroup() %>%
+  ggplot(aes(x = "", y = percent, fill = as.factor(is_case_f))) +  # Add fill aesthetic
+  geom_col(color = "black") +
+  facet_wrap(~ study_country_f) + 
+  geom_text(aes(label = paste0("N=",n,"\n (",percent,"%)")),
+            position = position_stack(vjust = 0.5)) +
+  coord_polar(theta = "y") +
+  theme_void() +
+  scale_fill_brewer(palette = "Pastel2") +  # Use a color palette from RColorBrewer
+  labs(
+    #title = "Distribution of Cases by Study Country",  # Add a title
+       fill = "Case Status")  # Label the fill legend for clarity
+
+
+  p_case
+
+  
+})
+
+
+```
+
+### Pie Chart - Sex
+
+```{r}
+
+renderPlot({
+  
+    p_sex <- ngap %>% filter(
+    str_detect(study_country,
+                  if_else(input$study_country_fig == "All",".*",
+                          input$study_country_fig)),
+                          (date >= input$dateRange_fig[1] & 
+                          date <= input$dateRange_fig[2]),
+                  if (input$SexSelect_fig == "All") {
+                       msex %in% c(0,1)
+                     } else {
+                       msex == input$SexSelect_fig
+                     },
+                  if (input$CaseSelect_fig == "All") {
+                      is_case %in% c(0, 1) | is.na(is_case)
+                     } else {
+                       is_case == input$CaseSelect_fig
+                     }
+
+              ) %>%
+  group_by(study_country_f, msex_f) %>%
+  summarise(n = n(), .groups = 'drop') %>%
+  group_by(study_country_f) %>%
+  mutate(total = sum(n),
+         percent = round((n / total) * 100, 0)) %>%
+  ungroup() %>%
+  ggplot(aes(x = "", y = percent, fill = as.factor(msex_f))) +  # Add fill aesthetic
+  geom_col(color = "black") +
+  facet_wrap(~ study_country_f) + 
+  geom_text(aes(label = paste0("N=",n,"\n (",percent,"%)")),
+            position = position_stack(vjust = 0.5)) +
+  coord_polar(theta = "y") +
+  theme_void() +
+  scale_fill_brewer(palette = "Pastel1") +  # Use a color palette from RColorBrewer
+  labs(
+    #title = "Percent Sex by Study Country",  # Add a title
+       fill = "Sex Status")  # Label the fill legend for clarity
+
+    p_sex
+})
+
+```
+
+Row {data-height=400}
+-----------------------------------------------------------------------
+### Population Pyramid - Case
+
+```{r}
+
+renderPlot({
+  
+ data_poppyr <- ngap %>% filter(
+    str_detect(study_country,
+                  if_else(input$study_country_fig == "All",".*",
+                          input$study_country_fig)),
+                          (date >= input$dateRange_fig[1] & 
+                          date <= input$dateRange_fig[2]),
+                  if (input$SexSelect_fig == "All") {
+                       msex %in% c(0,1)
+                     } else {
+                       msex == input$SexSelect_fig
+                     },
+                  if (input$CaseSelect_fig == "All") {
+                      is_case %in% c(0, 1) | is.na(is_case)
+                     } else {
+                       is_case == input$CaseSelect_fig
+                     }
+              ) %>%
+        group_by(age_at_iview, is_case_f) %>%
+        summarize(n = n(),
+                  .groups = 'drop') %>%
+        mutate(n_adjusted = if_else(is_case_f == "Case", -n, n))
+ 
+    max_adjusted <- max(data_poppyr$n) + 20
+      
+        ggplot(data_poppyr, aes(x = age_at_iview, y = n_adjusted, fill = is_case_f)) +
+        geom_bar(stat = "identity", width = 0.7) +
+        scale_y_continuous(labels = abs, 
+                           limits = c(-max_adjusted, max_adjusted))  +
+        coord_flip() +
+        labs(
+             x = "Age",
+             y = "Population Count",
+             fill = "Case Status") +
+        theme_minimal() +
+        scale_fill_brewer(palette = "Pastel2") +
+        theme(
+          axis.text = element_text(face = "bold"),
+          plot.title = element_text(hjust = 0.5, face = "bold"),
+          legend.title = element_text(face = "bold")
+  )
+  
+})
+```
+
+### Population Pyramid - Sex
+
+```{r}
+
+renderPlot({
+  
+ data_poppyr <- ngap %>% filter(
+    str_detect(study_country,
+                  if_else(input$study_country_fig == "All",".*",
+                          input$study_country_fig)),
+                          (date >= input$dateRange_fig[1] & 
+                          date <= input$dateRange_fig[2]),
+                  if (input$SexSelect_fig == "All") {
+                       msex %in% c(0,1)
+                     } else {
+                       msex == input$SexSelect_fig
+                     },
+                  if (input$CaseSelect_fig == "All") {
+                      is_case %in% c(0, 1) | is.na(is_case)
+                     } else {
+                       is_case == input$CaseSelect_fig
+                     }
+              ) %>%
+        group_by(age_at_iview, msex_f) %>%
+        summarize(n = n(),
+                  .groups = 'drop') %>%
+        mutate(n_adjusted = if_else(msex_f == "Female", -n, n))
+ 
+    max_adjusted <- max(data_poppyr$n) + 20
+      
+        ggplot(data_poppyr, aes(x = age_at_iview, y = n_adjusted, fill = msex_f)) +
+        geom_bar(stat = "identity", width = 0.7) +
+        #xlim(0, max(age_at_iview)) + 
+        scale_y_continuous(labels = abs, 
+                           limits = c(-max_adjusted, max_adjusted))  +
+        coord_flip() +
+        labs(
+             x = "Age",
+             y = "Population Count",
+             fill = "Sex") +
+        theme_minimal() +
+        scale_fill_brewer(palette = "Pastel1") +
+        theme(
+          axis.text = element_text(face = "bold"),
+          plot.title = element_text(hjust = 0.5, face = "bold"),
+          legend.title = element_text(face = "bold")
+  )
+  
+})
+```
+
+
+# Request Data
+<center> 
+<br>
+<br>
+<br>
+<br>
+<br>
+<h2> Interested in accessing this data?</h2>
+<strong> [Data request form](https://harvard.az1.qualtrics.com/jfe/form/SV_3C1B9Vy1CEI1BqJ).</strong>
+</center>
+```{r}
+
+
+
+```
+
+
+
